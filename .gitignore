@@ -1,0 +1,28 @@
+# WireGuard configs (содержат приватные ключи!)
+*.conf
+clients/
+
+# QR-коды (содержат полный профиль с приватным ключом)
+*.png
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# IDE / редакторы
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Логи
+*.log

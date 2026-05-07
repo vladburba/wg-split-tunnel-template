@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = <PASTE_FROM_PROFILE_1>
+Address = <PASTE_FROM_PROFILE_1>
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = <PASTE_FROM_PROFILE_1>
+PresharedKey = <PASTE_FROM_PROFILE_1_OR_DELETE_THIS_LINE>
+Endpoint = <PASTE_FROM_PROFILE_1>
+PersistentKeepalive = 25
+AllowedIPs = <ALLOWED_IPS_PLACEHOLDER>
