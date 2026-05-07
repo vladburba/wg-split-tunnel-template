@@ -3,6 +3,10 @@
 Готовый список IP для split-tunnel WireGuard. Через VPN идут только **Telegram, YouTube,
 WhatsApp** — остальное мимо туннеля.
 
+🛠 **Конструктор сервисов:** один файл [`services.conf`](services.conf), где каждая
+строка — отдельный сервис. Не нужно? Закомментируй. Хочешь Twitter, Discord, Netflix?
+Раскомментируй. Свой сервис? Допиши строку с AS-номерами. Подробности — [ниже](#-конструктор-сервисов).
+
 > Чтобы это применить, у вас уже должен быть **рабочий WireGuard-сервер** и **рабочий конфиг
 > клиента** (full-tunnel). Этот шаблон **ничего на сервере не меняет** — он только подсказывает,
 > что писать в `AllowedIPs` на стороне клиента.
@@ -45,6 +49,39 @@ QR этого размера сканируется WireGuard app за полс�
 > **Зачем `DNS = 1.1.1.1`?** Без него провайдер перехватывает DNS-запросы и подменяет ответы —
 > сайты ломаются по доменам, даже когда все правильные IP в списке. `1.1.1.1/32` уже включён
 > в наш `AllowedIPs`, чтобы DNS-трафик шёл через туннель.
+
+---
+
+## 🛠 Конструктор сервисов
+
+Файл [`services.conf`](services.conf) — единый источник правды о том, какие сервисы идут через VPN. Формат — самый простой:
+
+```
+# Закомментированная строка = сервис выключен
+telegram 62014 62041 59930 44907 211157
+google   15169
+meta     32934
+
+# twitter  13414     ← раскомментируйте чтобы включить Twitter/X
+# discord  49544     ← Discord
+# netflix  2906 40027  ← Netflix
+# github   36459     ← GitHub
+```
+
+Включил/выключил сервисы → перезапусти pipeline:
+
+```zsh
+./fetch_prefixes.sh             # докачает префиксы для новых AS
+python aggregate_prefixes.py    # пересчитает allowed_ips_*.txt
+./build_conf.sh                 # обновит AllowedIPs в profile2_split.conf
+./generate_qr.sh                # новый QR
+```
+
+Где брать AS-номера для своего сервиса:
+- [bgp.tools](https://bgp.tools) — поиск по домену → видно какой AS его обслуживает
+- [radar.cloudflare.com](https://radar.cloudflare.com) — у Cloudflare хороший поиск AS
+
+⚠️ Будь осторожен с большими AS типа `cloudflare 13335` — у Cloudflare миллионы клиентов, и весь их трафик пойдёт через VPN. Лучше добавить конкретные AS компании, которая вам нужна.
 
 ---
 
@@ -92,7 +129,8 @@ cd wg-split-tunnel-template
 # 1. Зависимости (qrencode + Python venv + netaddr)
 ./setup.sh
 
-# 2. (Опционально) обновить снапшот префиксов из RIPEstat
+# 2. (Опционально) Отредактировать services.conf если хотите свой набор сервисов,
+#    потом перезагрузить префиксы и пересчитать AllowedIPs:
 source .venv/bin/activate
 ./fetch_prefixes.sh
 python aggregate_prefixes.py
@@ -151,10 +189,11 @@ split-tunnel профиль. Сервер перенастраивать не н
 
 | Файл | Что |
 |---|---|
+| `services.conf` | **Конструктор сервисов** — какие AS включены |
 | `allowed_ips_oneline.txt` | **Готовая строка для `AllowedIPs`** (для самого простого пути) |
 | `setup.sh` | Установка зависимостей |
-| `fetch_prefixes.sh` | Скачивает префиксы AS из RIPEstat |
-| `aggregate_prefixes.py` | `cidr_merge` v4+v6, гарантирует `1.1.1.1/32` |
+| `fetch_prefixes.sh` | Скачивает префиксы AS из RIPEstat (на основе `services.conf`) |
+| `aggregate_prefixes.py` | Читает `services.conf`, делает `cidr_merge` v4+v6, гарантирует `1.1.1.1/32` |
 | `build_conf.sh` | Создаёт `profile2_split.conf` из шаблона |
 | `generate_qr.sh` | Делает PNG + ANSI QR из `.conf` |
 | `prefixes/asNNNNN.txt` | Снапшот префиксов AS |

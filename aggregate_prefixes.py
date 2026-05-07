@@ -2,9 +2,8 @@
 Агрегация IPv4+IPv6 префиксов для WireGuard split-tunnel профиля.
 
 Читает:
-  prefixes/*.txt        — префиксы по AS (один на строку)
-  domains_resolved.txt  — опционально: IP-ы доменов в формате CIDR (/32, /128).
-                          Создавай этот файл, если нужно добавить специфические IP.
+  services.conf         — конструктор: какие сервисы (и их AS) включены
+  prefixes/asNNNNN.txt  — префиксы по AS (заполняются fetch_prefixes.sh)
 
 Пишет:
   allowed_ips_final.txt    — по одному префиксу на строку
@@ -21,24 +20,59 @@ ROOT = Path(__file__).resolve().parent
 DNS_PREFIX = IPNetwork("1.1.1.1/32")
 
 
-def load_prefixes() -> set[str]:
+def parse_services_conf() -> dict[str, list[str]]:
+    """services.conf -> {service_name: [as_numbers]}. Пропускает комментарии и пустые строки."""
+    config = ROOT / "services.conf"
+    if not config.exists():
+        return {}
+    services: dict[str, list[str]] = {}
+    for raw_line in config.read_text().splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name, asns = parts[0], parts[1:]
+        services[name] = asns
+    return services
+
+
+def load_prefixes(services: dict[str, list[str]]) -> set[str]:
+    """Грузит префиксы только для AS из включённых сервисов."""
     raw: set[str] = set()
-    for p in (ROOT / "prefixes").glob("*.txt"):
-        for line in p.read_text().splitlines():
-            line = line.strip()
-            if line:
-                raw.add(line)
-    domains = ROOT / "domains_resolved.txt"
-    if domains.exists():
-        for line in domains.read_text().splitlines():
-            line = line.strip()
-            if line:
-                raw.add(line)
+    missing: list[tuple[str, str]] = []
+    for name, asns in services.items():
+        for asn in asns:
+            f = ROOT / "prefixes" / f"as{asn}.txt"
+            if not f.exists():
+                missing.append((name, asn))
+                continue
+            for line in f.read_text().splitlines():
+                line = line.strip()
+                if line:
+                    raw.add(line)
+    if missing:
+        print("⚠️  Не найдены файлы префиксов для AS:")
+        for name, asn in missing:
+            print(f"     {name}: prefixes/as{asn}.txt")
+        print("    Запустите ./fetch_prefixes.sh для скачивания.")
+        print()
     return raw
 
 
 def main() -> None:
-    raw = load_prefixes()
+    services = parse_services_conf()
+    if not services:
+        print("ОШИБКА: services.conf не найден или пустой.")
+        print("Создайте файл и пропишите включённые сервисы — см. README.")
+        return
+
+    print(f"Включённые сервисы ({len(services)}): {', '.join(services.keys())}")
+    raw = load_prefixes(services)
+    if not raw:
+        print("Префиксы не загружены. Сначала ./fetch_prefixes.sh")
+        return
     print(f"Уникальных префиксов на входе: {len(raw)}")
 
     v4_in: list[IPNetwork] = []
@@ -62,7 +96,6 @@ def main() -> None:
         print(f"{DNS_PREFIX} уже покрыт существующим префиксом")
         v4_final = list(v4_merged)
     else:
-        # Удаляем dns из списка (на случай дублей) и кладём первой строкой.
         v4_others = [n for n in v4_merged if n != DNS_PREFIX]
         v4_final = [DNS_PREFIX] + v4_others
         print(f"Добавлен {DNS_PREFIX} первой строкой (DNS через туннель)")

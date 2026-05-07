@@ -1,22 +1,39 @@
-#!/bin/zsh
-# Скачивает актуальные IPv4+IPv6 префиксы по 7 AS (Telegram x5, Google, Meta) из RIPEstat.
-# Перезаписывает файлы в prefixes/.
+#!/usr/bin/env bash
+# Скачивает IPv4+IPv6 префиксы по AS-номерам из RIPEstat.
+# Источник правды — services.conf: только AS включённых сервисов.
 set -e
+
+if [ ! -f services.conf ]; then
+  echo "ОШИБКА: services.conf не найден"
+  exit 1
+fi
+
+# Парсим services.conf:
+#   - игнорируем строки, начинающиеся с # (или пустые)
+#   - срезаем inline-комментарии
+#   - первое слово = имя сервиса, остальные = AS-номера
+ASNS=$(awk '
+  { sub(/#.*$/, "") }                # срезаем inline-комментарии
+  /^[[:space:]]*$/ { next }          # пропускаем пустые
+  { for (i = 2; i <= NF; i++) print $i }
+' services.conf | sort -u)
+
+if [ -z "$ASNS" ]; then
+  echo "В services.conf нет включённых сервисов. Раскомментируйте хотя бы один."
+  exit 1
+fi
 
 mkdir -p prefixes
 
-# Telegram x5, Google (включая YouTube), Meta (включая WhatsApp)
-ASNS=(62014 62041 59930 44907 211157 15169 32934)
-
-echo "=== Скачиваю префиксы AS из RIPEstat ==="
-for ASN in "${ASNS[@]}"; do
+echo "=== Скачиваю префиксы AS из services.conf через RIPEstat ==="
+for ASN in $ASNS; do
   out="prefixes/as${ASN}.txt"
   curl -s --max-time 25 \
     "https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS${ASN}" \
     | jq -r '.data.prefixes[]?.prefix' > "$out"
   count=$(wc -l < "$out" | tr -d ' ')
   printf "  AS%-7s %4d префиксов\n" "$ASN" "$count"
-  sleep 1  # rate-limit вежливость
+  sleep 1   # вежливость к API
 done
 
 echo ""
