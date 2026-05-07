@@ -105,14 +105,41 @@ def main() -> None:
 
     final_path = ROOT / "allowed_ips_final.txt"
     oneline_path = ROOT / "allowed_ips_oneline.txt"
+    oneline_str = ",".join(str(n) for n in final)
     final_path.write_text("\n".join(str(n) for n in final) + "\n")
-    oneline_path.write_text(",".join(str(n) for n in final))
+    oneline_path.write_text(oneline_str)
+
+    sync_readme(oneline_str)
 
     print()
     print("Готово:")
     print(f"  {final_path.name} — {total} строк")
     print(f"  {oneline_path.name} — {total} префиксов одной строкой")
     print(f"  Сжатие: {len(raw)} -> {total} ({(1 - total/len(raw))*100:.1f}%)")
+
+
+def sync_readme(oneline: str) -> None:
+    """Обновляет блок AllowedIPs внутри README.md между маркерами BEGIN/END_ALLOWED_IPS."""
+    import re
+    readme = ROOT / "README.md"
+    if not readme.exists():
+        return
+    text = readme.read_text()
+    start = "<!-- BEGIN_ALLOWED_IPS -->"
+    end = "<!-- END_ALLOWED_IPS -->"
+    if start not in text or end not in text:
+        return  # маркеры отсутствуют — пропускаем
+    block = f"{start}\n```text\n{oneline}\n```\n{end}"
+    new_text = re.sub(
+        re.escape(start) + r".*?" + re.escape(end),
+        block,
+        text,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if new_text != text:
+        readme.write_text(new_text)
+        print(f"  README.md — синхронизирован блок AllowedIPs ({len(oneline)} символов)")
 
 
 if __name__ == "__main__":
