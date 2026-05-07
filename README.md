@@ -127,7 +127,7 @@ app — один тап.
 ### Quick start
 
 ```zsh
-git clone https://github.com/<USERNAME>/wg-split-tunnel-template.git
+git clone https://github.com/vladburba/wg-split-tunnel-template.git
 cd wg-split-tunnel-template
 
 # 1. Зависимости (qrencode + Python venv + netaddr)
