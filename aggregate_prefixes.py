@@ -61,6 +61,26 @@ def load_prefixes(services: dict[str, list[str]]) -> set[str]:
     return raw
 
 
+def load_manual_prefixes() -> set[str]:
+    """Грузит prefixes/manual.txt — префиксы для сервисов, живущих не в своей AS.
+
+    Нужен, когда сервис размещён на общем CDN (Fastly, Cloudflare, CloudFront):
+    добавить всю AS такого CDN нельзя, но выделенный блок провайдера — можно.
+    Файл не перезаписывается fetch_prefixes.sh.
+    """
+    f = ROOT / "prefixes" / "manual.txt"
+    if not f.exists():
+        return set()
+    manual = {
+        line
+        for raw_line in f.read_text().splitlines()
+        if (line := raw_line.split("#", 1)[0].strip())
+    }
+    if manual:
+        print(f"Ручных префиксов из manual.txt: {len(manual)}")
+    return manual
+
+
 def main() -> None:
     services = parse_services_conf()
     if not services:
@@ -70,6 +90,7 @@ def main() -> None:
 
     print(f"Включённые сервисы ({len(services)}): {', '.join(services.keys())}")
     raw = load_prefixes(services)
+    raw |= load_manual_prefixes()
     if not raw:
         print("Префиксы не загружены. Сначала ./fetch_prefixes.sh")
         return
